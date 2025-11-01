@@ -35,16 +35,23 @@ pipeline {
             }
         }
 
-        // New stage to ensure nginx and the live server are up
+        // Ensures nginx and the CURRENTLY LIVE server are running
         stage('Verify Initial State') {
             steps {
                 echo "Ensuring nginx and ${env.LIVE_SERVER} are running..."
-                // Use the project flag '-p bluegreen'
                 bat "docker-compose -p bluegreen up -d --no-deps ${env.LIVE_SERVER} nginx"
             }
         }
 
-        // ... (previous stages are the same) ...
+        // --- THIS IS THE CRITICAL STAGE THAT WAS MISSING ---
+        stage('Build & Deploy to Standby') {
+            steps {
+                echo "Building and deploying new version to ${env.STANDBY_SERVER}..."
+                bat "docker-compose -p bluegreen up -d --no-deps --build --force-recreate ${env.STANDBY_SERVER}"
+                echo "Successfully deployed to standby."
+            }
+        }
+        // --- END OF MISSING STAGE ---
 
         stage('Flip Router to Standby') {
             steps {
@@ -57,10 +64,8 @@ pipeline {
                     def newConfig = nginxConfig.replace("server blue:3000", "server ${env.STANDBY_SERVER}:3000")
                     newConfig = newConfig.replace("server green:3000", "server ${env.STANDBY_SERVER}:3000")
                     
-                    // --- NEW LOGGING ---
                     echo "New nginx.conf content will be:"
                     echo newConfig
-                    // --- END NEW LOGGING ---
 
                     writeFile(file: 'nginx.conf', text: newConfig)
                 }
@@ -74,8 +79,6 @@ pipeline {
 
         stage('Update State') {
             steps {
-                // --- THIS IS THE FIX ---
-                // Replaced 'bat "echo..."' with the more reliable 'writeFile'
                 script {
                     def newState = "CURRENT_LIVE=${env.STANDBY_SERVER}"
                     echo "Updating state file to: ${newState}"
@@ -86,7 +89,6 @@ pipeline {
                 bat "docker-compose -p bluegreen stop ${env.LIVE_SERVER}"
             }
         }
-// ... (rest of the file is the same) ...
     }
 
     post {
@@ -95,5 +97,3 @@ pipeline {
         }
     }
 }
-
-
