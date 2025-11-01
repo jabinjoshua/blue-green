@@ -37,11 +37,7 @@ pipeline {
         stage('Build & Deploy to Standby') {
             steps {
                 echo "Building and deploying new version to ${env.STANDBY_SERVER}..."
-                
-                // --- THIS IS THE FIX ---
-                // Added --force-recreate to remove the old container
                 bat "docker-compose up -d --no-deps --build --force-recreate ${env.STANDBY_SERVER}"
-                
                 echo "Successfully deployed to standby."
             }
         }
@@ -55,6 +51,10 @@ pipeline {
                     def newConfig = nginxConfig.replace("server ${env.LIVE_SERVER}:3000", "server ${env.STANDBY_SERVER}:3000")
                     writeFile(file: 'nginx.conf', text: newConfig)
                 }
+                
+                // --- THIS IS THE FIX ---
+                echo "Waiting 5 seconds for container DNS to register..."
+                bat "timeout /t 5 /nobreak"
                 
                 bat "docker exec nginx nginx -s reload"
                 echo "Traffic switched."
