@@ -42,8 +42,6 @@ pipeline {
             }
         }
 
-        // ... (previous stages are the same) ...
-
         stage('Flip Router to Standby') {
             steps {
                 script {
@@ -55,16 +53,14 @@ pipeline {
                 }
                 
                 // --- THIS IS THE FIX ---
-                echo "Waiting 10 seconds for container DNS to register..."
-                // Increased sleep time from 5 to 10
-                sleep 10
+                echo "Restarting Nginx container to pick up changes..."
+                // Replaced 'sleep' and 'docker exec' with a full restart
+                bat "docker-compose restart nginx"
                 
-                bat "docker exec nginx nginx -s reload"
                 echo "Traffic switched."
             }
         }
 
-// ... (subsequent stages are the same) ...
         stage('Update State') {
             steps {
                 bat "echo CURRENT_LIVE=${env.STANDBY_SERVER} > live.env"
@@ -81,4 +77,3 @@ pipeline {
         }
     }
 }
-
