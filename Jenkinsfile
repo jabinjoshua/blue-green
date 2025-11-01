@@ -42,6 +42,8 @@ pipeline {
             }
         }
 
+        // ... (previous stages are the same) ...
+
         stage('Flip Router to Standby') {
             steps {
                 script {
@@ -53,15 +55,16 @@ pipeline {
                 }
                 
                 // --- THIS IS THE FIX ---
-                echo "Waiting 5 seconds for container DNS to register..."
-                // Replaced 'bat "timeout..."' with the built-in 'sleep' step
-                sleep 5
+                echo "Waiting 10 seconds for container DNS to register..."
+                // Increased sleep time from 5 to 10
+                sleep 10
                 
                 bat "docker exec nginx nginx -s reload"
                 echo "Traffic switched."
             }
         }
 
+// ... (subsequent stages are the same) ...
         stage('Update State') {
             steps {
                 bat "echo CURRENT_LIVE=${env.STANDBY_SERVER} > live.env"
@@ -78,3 +81,4 @@ pipeline {
         }
     }
 }
+
