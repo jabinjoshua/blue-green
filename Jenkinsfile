@@ -17,6 +17,7 @@ pipeline {
                     if (fileExists('live.env')) {
                         live = readFile('live.env').trim().split('=')[1]
                     } else {
+                        // If no file, default to 'blue' being live
                         live = 'blue'
                     }
 
@@ -34,10 +35,20 @@ pipeline {
             }
         }
 
+        // New stage to ensure nginx and the live server are up
+        stage('Verify Initial State') {
+            steps {
+                echo "Ensuring nginx and ${env.LIVE_SERVER} are running..."
+                // Use the project flag '-p bluegreen'
+                bat "docker-compose -p bluegreen up -d --no-deps ${env.LIVE_SERVER} nginx"
+            }
+        }
+
         stage('Build & Deploy to Standby') {
             steps {
                 echo "Building and deploying new version to ${env.STANDBY_SERVER}..."
-                bat "docker-compose up -d --no-deps --build --force-recreate ${env.STANDBY_SERVER}"
+                // Use the project flag '-p bluegreen'
+                bat "docker-compose -p bluegreen up -d --no-deps --build --force-recreate ${env.STANDBY_SERVER}"
                 echo "Successfully deployed to standby."
             }
         }
@@ -52,10 +63,9 @@ pipeline {
                     writeFile(file: 'nginx.conf', text: newConfig)
                 }
                 
-                // --- THIS IS THE FIX ---
-                echo "Restarting Nginx container to pick up changes..."
-                // Replaced 'sleep' and 'docker exec' with a full restart
-                bat "docker-compose restart nginx"
+                echo "Restarting Nginx to pick up changes..."
+                // Use the project flag '-p bluegreen'
+                bat "docker-compose -p bluegreen restart nginx"
                 
                 echo "Traffic switched."
             }
@@ -66,7 +76,8 @@ pipeline {
                 bat "echo CURRENT_LIVE=${env.STANDBY_SERVER} > live.env"
                 
                 echo "Stopping old live server: ${env.LIVE_SERVER}"
-                bat "docker-compose stop ${env.LIVE_SERVER}"
+                // Use the project flag '-p bluegreen'
+                bat "docker-compose -p bluegreen stop ${env.LIVE_SERVER}"
             }
         }
     }
