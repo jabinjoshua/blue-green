@@ -44,14 +44,7 @@ pipeline {
             }
         }
 
-        stage('Build & Deploy to Standby') {
-            steps {
-                echo "Building and deploying new version to ${env.STANDBY_SERVER}..."
-                // Use the project flag '-p bluegreen'
-                bat "docker-compose -p bluegreen up -d --no-deps --build --force-recreate ${env.STANDBY_SERVER}"
-                echo "Successfully deployed to standby."
-            }
-        }
+        // ... (previous stages are the same) ...
 
         stage('Flip Router to Standby') {
             steps {
@@ -60,13 +53,15 @@ pipeline {
                     
                     def nginxConfig = readFile('nginx.conf')
                     
-                    // --- THIS IS THE FIX ---
-                    // First, replace 'blue' with the new server
+                    // Idempotent replacement logic
                     def newConfig = nginxConfig.replace("server blue:3000", "server ${env.STANDBY_SERVER}:3000")
-                    // Then, replace 'green' with the new server.
-                    // This makes the replacement idempotent.
                     newConfig = newConfig.replace("server green:3000", "server ${env.STANDBY_SERVER}:3000")
                     
+                    // --- NEW LOGGING ---
+                    echo "New nginx.conf content will be:"
+                    echo newConfig
+                    // --- END NEW LOGGING ---
+
                     writeFile(file: 'nginx.conf', text: newConfig)
                 }
                 
@@ -79,13 +74,19 @@ pipeline {
 
         stage('Update State') {
             steps {
-                bat "echo CURRENT_LIVE=${env.STANDBY_SERVER} > live.env"
+                // --- THIS IS THE FIX ---
+                // Replaced 'bat "echo..."' with the more reliable 'writeFile'
+                script {
+                    def newState = "CURRENT_LIVE=${env.STANDBY_SERVER}"
+                    echo "Updating state file to: ${newState}"
+                    writeFile(file: 'live.env', text: newState)
+                }
                 
                 echo "Stopping old live server: ${env.LIVE_SERVER}"
-                // Use the project flag '-p bluegreen'
                 bat "docker-compose -p bluegreen stop ${env.LIVE_SERVER}"
             }
         }
+// ... (rest of the file is the same) ...
     }
 
     post {
@@ -94,4 +95,5 @@ pipeline {
         }
     }
 }
+
 
