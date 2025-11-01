@@ -56,15 +56,21 @@ pipeline {
         stage('Flip Router to Standby') {
             steps {
                 script {
-                    echo "Switching live traffic from ${env.LIVE_SERVER} to ${env.STANDBY_SERVER}..."
+                    echo "Switching live traffic to ${env.STANDBY_SERVER}..."
                     
                     def nginxConfig = readFile('nginx.conf')
-                    def newConfig = nginxConfig.replace("server ${env.LIVE_SERVER}:3000", "server ${env.STANDBY_SERVER}:3000")
+                    
+                    // --- THIS IS THE FIX ---
+                    // First, replace 'blue' with the new server
+                    def newConfig = nginxConfig.replace("server blue:3000", "server ${env.STANDBY_SERVER}:3000")
+                    // Then, replace 'green' with the new server.
+                    // This makes the replacement idempotent.
+                    newConfig = newConfig.replace("server green:3000", "server ${env.STANDBY_SERVER}:3000")
+                    
                     writeFile(file: 'nginx.conf', text: newConfig)
                 }
                 
                 echo "Restarting Nginx to pick up changes..."
-                // Use the project flag '-p bluegreen'
                 bat "docker-compose -p bluegreen restart nginx"
                 
                 echo "Traffic switched."
@@ -88,3 +94,4 @@ pipeline {
         }
     }
 }
+
