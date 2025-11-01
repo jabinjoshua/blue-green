@@ -54,7 +54,8 @@ pipeline {
                 
                 // --- THIS IS THE FIX ---
                 echo "Waiting 5 seconds for container DNS to register..."
-                bat "timeout /t 5 /nobreak"
+                // Replaced 'bat "timeout..."' with the built-in 'sleep' step
+                sleep 5
                 
                 bat "docker exec nginx nginx -s reload"
                 echo "Traffic switched."
